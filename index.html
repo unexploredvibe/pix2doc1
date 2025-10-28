@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Image to PDF Converter</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load jsPDF library for client-side PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        // Inter is a clean sans-serif font, suitable for the look
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        // Signature Blue Accent
+                        'primary-blue': '#007AFF',      
+                        'primary-blue-dark': '#005EDD', 
+                        // Refined Grayscale Palette
+                        'card-bg': '#ffffff',           // Pure White card
+                        'body-bg': '#C9CAD7',           // Updated to #C9CAD7
+                        'text-main': '#1C1C1E',         // Crisper near-black for main text
+                        'text-secondary': '#6C6C70',    // Slightly refined gray
+                        'border-light': '#e5e5e5',      // Lighter, subtler border color
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Apply smooth transitions and font */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* Custom styling for the main card shadow for better lift */
+        .shadow-lg {
+            /* Softened the default shadow for a 'floating paper' look */
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08), 0 4px 10px -2px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Custom styling for the file drag area */
+        .drop-area {
+            border-style: dashed;
+            transition: border-color 0.3s, background-color 0.3s;
+        }
+        
+        /* Style for the primary conversion button */
+        #convert-btn:enabled {
+            background-color: theme('colors.primary-blue');
+            /* Enhanced, softer shadow for the primary button */
+            box-shadow: 0 5px 15px -5px rgba(0, 122, 255, 0.4); 
+        }
+        #convert-btn:enabled:hover {
+            background-color: theme('colors.primary-blue-dark');
+            box-shadow: 0 7px 20px -5px rgba(0, 122, 255, 0.5); /* Lift slightly on hover */
+        }
+        
+        /* General input/textarea refinement for elegant focus state */
+        textarea:focus, input[type="text"]:focus, select:focus {
+            box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.3); /* Subtle blue ring focus */
+        }
+    </style>
+</head>
+<body class="bg-body-bg text-text-main min-h-screen p-6 flex items-center justify-center">
+
+    <div class="w-full max-w-3xl bg-card-bg shadow-lg rounded-2xl p-10 space-y-10 border border-border-light/50">
+        <!-- Header -->
+        <header class="text-center space-y-2">
+            <!-- Title text changed to Pix2doc -->
+            <h1 class="text-4xl font-extrabold text-primary-blue-dark tracking-tight">Pix2doc</h1>
+            <p class="text-lg text-text-secondary">
+                Secure, client-side conversion of **Images to PDF**.
+            </p>
+            <div id="security-note" class="text-sm bg-blue-50/50 text-primary-blue p-3 rounded-xl font-medium border border-blue-100 mt-4">
+                🔒 **Local Processing:** Files are processed entirely in your browser.
+            </div>
+        </header>
+
+        <!-- Main Conversion Area -->
+        <main class="space-y-8">
+            
+            <!-- File Input / Drop Area -->
+            <div id="drop-area" class="drop-area border-2 border-dashed border-border-light p-12 text-center rounded-xl bg-white hover:bg-gray-50 transition duration-300 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 mx-auto text-primary-blue mb-4 opacity-75">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v12m-2.25-4.5h8.25" />
+                </svg>
+                <p class="text-xl font-semibold mb-1 text-text-main">Drop Images Here</p>
+                <p class="text-sm text-text-secondary mb-4">Click to select files. Supports **JPEG, PNG, GIF, and WebP** formats.</p>
+                <button onclick="document.getElementById('file-input').click()" class="px-8 py-2 bg-primary-blue text-white font-medium text-sm rounded-lg hover:bg-primary-blue-dark transition duration-300 shadow-md">
+                    Choose Files
+                </button>
+                <input type="file" id="file-input" multiple accept="image/jpeg, image/png, image/gif, image/webp" class="hidden">
+            </div>
+
+            <!-- Quality Settings Option -->
+            <div class="space-y-2">
+                <label for="quality-select" class="block text-sm font-semibold text-text-main">Output Quality</label>
+                <select id="quality-select" class="w-full p-3 text-sm rounded-lg border border-border-light focus:ring-primary-blue focus:border-primary-blue outline-none bg-white">
+                    <option value="1.0">Max Quality (Best Image)</option>
+                    <option value="0.9">High Quality (Recommended)</option>
+                    <option value="0.7">Medium Quality</option>
+                    <option value="0.4">Low Quality (Smallest File)</option>
+                </select>
+                <p class="text-xs text-text-secondary">Higher quality results in larger PDF file sizes.</p>
+            </div>
+
+
+            <!-- Selected Files List -->
+            <div id="file-list" class="space-y-3">
+                <p id="file-count" class="text-sm font-semibold text-text-secondary tracking-wider hidden border-b pb-2 border-border-light">SELECTED FILES (0)</p>
+            </div>
+
+            <!-- Conversion Button & Status -->
+            <div class="pt-4 space-y-4">
+                <button id="convert-btn" class="w-full py-4 text-white font-bold text-lg rounded-xl transition duration-300 disabled:opacity-30 disabled:shadow-none bg-gray-400" disabled>
+                    Convert to PDF
+                </button>
+                <div id="status-message" class="text-center font-medium hidden"></div>
+                <div id="download-area" class="text-center hidden"></div>
+            </div>
+
+        </main>
+        
+        <!-- Footer Section (About, Email, Comments) -->
+        <footer class="pt-10 mt-10 space-y-8 border-t border-border-light text-center">
+            
+            <!-- About Section -->
+            <section class="space-y-2">
+                <h2 class="text-xl font-semibold text-text-main">About This Tool</h2>
+                <p class="text-text-secondary max-w-md mx-auto text-sm leading-relaxed">
+                    This secure, client-side application is designed for rapid conversion of common image formats (JPEG, PNG, GIF, WebP) to a standardized PDF document. All processing occurs locally in your browser, guaranteeing your data privacy.
+                </p>
+            </section>
+
+            <!-- Email/Contact Section -->
+            <section class="space-y-2">
+                <h2 class="text-xl font-semibold text-text-main">Get in Touch</h2>
+                <!-- Email address updated here -->
+                <a href="mailto:team.pix2doc@gmail.com" class="text-primary-blue hover:text-primary-blue-dark transition duration-200 text-sm font-medium">
+                    team.pix2doc@gmail.com
+                </a>
+            </section>
+
+            <!-- Comment Section (Feedback Form) -->
+            <section class="max-w-md mx-auto pt-6 space-y-4">
+                <h2 class="text-xl font-semibold text-text-main">Leave Feedback</h2>
+                <form id="feedback-form" class="space-y-3">
+                    <textarea id="comment-text" class="w-full p-3 h-24 text-sm rounded-lg border border-border-light focus:ring-primary-blue focus:border-primary-blue resize-none placeholder-text-secondary/70 outline-none" placeholder="Tell us what you think or report an issue..."></textarea>
+                    <button type="submit" class="w-full py-2 bg-text-secondary text-white font-medium rounded-lg hover:bg-text-main transition duration-300 text-sm">
+                        Submit Comment
+                    </button>
+                    <p id="comment-status" class="text-sm font-medium hidden"></p>
+                </form>
+            </section>
+
+            <!-- Copyright -->
+            <p class="text-xs text-text-secondary pt-4 border-t border-border-light/50 mt-10">
+                &copy; **2025 Pix2doc**. All Rights Reserved.
+            </p>
+        </footer>
+        
+    </div>
+
+    <script>
+        // Constants and Element References
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const fileListDiv = document.getElementById('file-list');
+        const fileCountText = document.getElementById('file-count');
+        const convertBtn = document.getElementById('convert-btn');
+        const statusMessage = document.getElementById('status-message');
+        const downloadArea = document.getElementById('download-area');
+        const feedbackForm = document.getElementById('feedback-form');
+        const commentStatus = document.getElementById('comment-status');
+        const qualitySelect = document.getElementById('quality-select'); 
+
+        let selectedFiles = [];
+
+        // --- Utility Functions ---
+
+        // Function to convert file to data URL
+        function fileToDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Function to sanitize files and update the list
+        function handleFiles(files) {
+            // Updated supported MIME types to include GIF and WebP
+            const supportedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+            // Filter files to only accept supported image formats
+            const newFiles = Array.from(files).filter(file => 
+                supportedMimes.includes(file.type)
+            );
+            
+            if (newFiles.length === 0 && files.length > 0) {
+                 showMessage('Error: Only JPEG, PNG, GIF, and WebP files are supported.', 'text-red-500');
+                 return;
+            }
+
+            // Append new valid files to the selection
+            selectedFiles = [...selectedFiles, ...newFiles];
+            
+            renderFileList();
+        }
+
+        // Function to remove a file from the list
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            renderFileList();
+        }
+
+        // Function to render the list of selected files
+        function renderFileList() {
+            fileListDiv.innerHTML = '';
+            
+            if (selectedFiles.length === 0) {
+                fileCountText.classList.add('hidden');
+                convertBtn.disabled = true;
+                convertBtn.classList.remove('bg-primary-blue');
+                convertBtn.classList.add('bg-gray-400');
+                return;
+            }
+
+            fileCountText.textContent = `SELECTED FILES (${selectedFiles.length})`;
+            fileCountText.classList.remove('hidden');
+            convertBtn.disabled = false;
+            convertBtn.classList.remove('bg-gray-400');
+            convertBtn.classList.add('bg-primary-blue');
+            
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-border-light';
+                fileItem.innerHTML = `
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-text-secondary flex-shrink-0">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v12m-2.25-4.5h8.25" />
+                        </svg>
+                        <span class="truncate text-sm font-medium text-text-main">${file.name}</span>
+                        <span class="text-xs text-text-secondary flex-shrink-0 ml-2">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                    </div>
+                    <button data-index="${index}" class="remove-file-btn p-1 text-text-secondary hover:text-red-500 rounded-full transition duration-150" aria-label="Remove file">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                `;
+                fileListDiv.appendChild(fileItem);
+            });
+
+            // Attach event listeners to remove buttons
+            document.querySelectorAll('.remove-file-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const index = parseInt(e.currentTarget.getAttribute('data-index'));
+                    removeFile(index);
+                });
+            });
+            
+            // Clear status and download area on file change
+            statusMessage.classList.add('hidden');
+            downloadArea.classList.add('hidden');
+        }
+
+        // Function to show status messages
+        function showMessage(text, className) {
+            statusMessage.textContent = text;
+            statusMessage.className = `text-center font-medium ${className}`;
+            statusMessage.classList.remove('hidden');
+        }
+
+        // --- Core Conversion Logic ---
+        
+        async function convertToPdf() {
+            if (selectedFiles.length === 0) return;
+
+            convertBtn.disabled = true;
+            showMessage('Processing... This may take a moment for large files.', 'text-primary-blue animate-pulse');
+            downloadArea.classList.add('hidden');
+            
+            try {
+                // Get selected quality value (0.4 to 1.0)
+                const qualityValue = parseFloat(qualitySelect.value);
+
+                // Initialize jsPDF
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+                    
+                    // 1. Read file as Data URL
+                    const dataUrl = await fileToDataURL(file);
+
+                    // 2. Load image to get dimensions
+                    const img = new Image();
+                    await new Promise(resolve => {
+                        img.onload = resolve;
+                        img.src = dataUrl;
+                    });
+                    
+                    const imgWidth = img.width;
+                    const imgHeight = img.height;
+                    
+                    // Determine image format for jsPDF
+                    const mimeType = file.type;
+                    let imgType;
+                    if (mimeType.includes('jpeg')) {
+                        imgType = 'JPEG';
+                    } else if (mimeType.includes('png')) {
+                        imgType = 'PNG';
+                    } else if (mimeType.includes('gif')) {
+                        imgType = 'GIF';
+                    } else if (mimeType.includes('webp')) {
+                        imgType = 'WEBP';
+                    } else {
+                        // Should not happen due to handleFiles filter
+                        console.warn(`Skipping unsupported file type in conversion: ${mimeType}`);
+                        continue; 
+                    }
+
+
+                    // 3. Define PDF page dimensions (A4 in mm: 210 x 297)
+                    const a4Width = 210;
+                    const a4Height = 297;
+                    
+                    // Calculate scale factors to fit the image on the page
+                    const ratio = imgWidth / imgHeight;
+                    let pdfWidth, pdfHeight;
+
+                    if (imgWidth > imgHeight) { // Landscape Image
+                        pdfWidth = a4Width;
+                        pdfHeight = a4Width / ratio;
+                        if (pdfHeight > a4Height) { // Scale height down if it exceeds A4 height
+                            pdfHeight = a4Height;
+                            pdfWidth = a4Height * ratio;
+                        }
+                    } else { // Portrait or Square Image
+                        pdfHeight = a4Height;
+                        pdfWidth = a4Height * ratio;
+                        if (pdfWidth > a4Width) { // Scale width down if it exceeds A4 width
+                            pdfWidth = a4Width;
+                            pdfHeight = a4Width / ratio;
+                        }
+                    }
+
+                    // Calculate center position
+                    const x = (a4Width - pdfWidth) / 2;
+                    const y = (a4Height - pdfHeight) / 2;
+
+                    // Add a new page for every file except the first one
+                    if (i > 0) {
+                        doc.addPage('a4', 'portrait');
+                    }
+
+                    // 4. Add the image to the PDF
+                    // The 10th argument is the quality setting (0 to 1), typically used for JPEG and other lossy formats.
+                    doc.addImage(dataUrl, imgType, x, y, pdfWidth, pdfHeight, null, 'FAST', 0, qualityValue);
+                    
+                    showMessage(`Processing file ${i + 1} of ${selectedFiles.length}...`, 'text-primary-blue');
+                }
+
+                // 5. Save the PDF
+                let filename = 'converted_images.pdf';
+                if (selectedFiles.length === 1) {
+                    filename = selectedFiles[0].name.split('.').slice(0, -1).join('.') + '.pdf';
+                }
+                
+                doc.save(filename);
+
+                showMessage('Conversion Complete! Your download should start automatically.', 'text-green-600');
+                
+                // Reset selected files and UI
+                selectedFiles = [];
+                renderFileList();
+
+            } catch (error) {
+                console.error("Conversion failed:", error);
+                showMessage('An error occurred during conversion. See console for details.', 'text-red-500');
+            } finally {
+                convertBtn.disabled = false;
+            }
+        }
+
+        // --- Event Listeners (Drop Area and File Handling) ---
+
+        // File Input Change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files) {
+                handleFiles(e.target.files);
+                e.target.value = null; // Clear input for next selection
+            }
+        });
+
+        // Drop Area Drag/Drop Handlers
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                // Subtle blue border highlight on drag-over
+                dropArea.classList.add('!border-primary-blue-dark', 'bg-blue-50/20');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('!border-primary-blue-dark', 'bg-blue-50/20');
+            }, false);
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }, false);
+
+        // Convert Button Click
+        convertBtn.addEventListener('click', convertToPdf);
+
+        // --- Feedback Form Handler (Client-Side Mock) ---
+        feedbackForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const commentText = document.getElementById('comment-text').value.trim();
+            if (commentText.length > 0) {
+                // Mock submission success (since there is no backend)
+                commentStatus.textContent = 'Thank you for your feedback! This is a client-side demo.';
+                commentStatus.classList.remove('hidden', 'text-red-500');
+                commentStatus.classList.add('text-green-600');
+                document.getElementById('comment-text').value = ''; // Clear textarea
+                
+                // Hide after 5 seconds
+                setTimeout(() => {
+                    commentStatus.classList.add('hidden');
+                }, 5000);
+            } else {
+                commentStatus.textContent = 'Please enter your comment before submitting.';
+                commentStatus.classList.remove('hidden', 'text-green-600');
+                commentStatus.classList.add('text-red-500');
+            }
+        });
+    </script>
+</body>
+</html>
